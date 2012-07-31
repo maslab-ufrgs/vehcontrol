@@ -1,24 +1,9 @@
-# This file is part of SUMO Online Router
-#
-# SUMO Online Router is free software: you can redistribute it and/or
-# modify it under the terms of the GNU Lesser General Public License 
-# as published by the Free Software Foundation, either version 3 of 
-# the License, or (at your option) any later version.
-#
-# SUMO Online Router is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with SUMO Online Router. If not, see <http://www.gnu.org/licenses/>.
-#
-# Recipe created by Matteo Dell'Amico on Jun 2007, available in:
-# <http://code.activestate.com/recipes/522995/>
+"""A priority queue with modifiable priorities.
+"""
 
 from heapq import heapify, heappush, heappop
 
-class priority_dict(dict):
+class PriorityDict(dict):
     """Dictionary that can be used as a priority queue.
 
     Keys of the dictionary are items to be put into the queue, and values
@@ -32,9 +17,9 @@ class priority_dict(dict):
 
     The 'sorted_iter' method provides a destructive sorted iterator.
     """
-    
+
     def __init__(self, *args, **kwargs):
-        super(priority_dict, self).__init__(*args, **kwargs)
+        super(PriorityDict, self).__init__(*args, **kwargs)
         self._rebuild_heap()
 
     def _rebuild_heap(self):
@@ -44,9 +29,9 @@ class priority_dict(dict):
     def __setitem__(self, key, val):
         # We are not going to remove the previous value from the heap,
         # since this would have a cost O(n).
-        
-        super(priority_dict, self).__setitem__(key, val)
-        
+
+        super(PriorityDict, self).__setitem__(key, val)
+
         if len(self._heap) < 2 * len(self):
             heappush(self._heap, (val, key))
         else:
@@ -59,29 +44,29 @@ class priority_dict(dict):
 
         Raises IndexError if the object is empty.
         """
-        
+
         heap = self._heap
-        v, k = heap[0]
+        val, key = heap[0]
         # Doesn't pop a repeated item (due to repeated insertion)
-        while k not in self or self[k] != v:
+        while key not in self or self[key] != val:
             heappop(heap)
-            v, k = heap[0]
-        return k
+            val, key = heap[0]
+        return key
 
     def pop_smallest(self):
         """Return the item with the lowest priority and remove it.
 
         Raises IndexError if the object is empty.
         """
-        
+
         heap = self._heap
-        v, k = heappop(heap)
+        val, key = heappop(heap)
         # Doesn't pop a repeated item (due to repeated insertion)
-        while k not in self or self[k] != v:
-            v, k = heappop(heap)
+        while key not in self or self[key] != val:
+            val, key = heappop(heap)
         # Removes key from dict (heap still kept)
-        del self[k]
-        return k
+        del self[key]
+        return key
 
     def setdefault(self, key, val):
         if key not in self:
@@ -93,8 +78,8 @@ class priority_dict(dict):
         # Reimplementing dict.update is tricky -- see e.g.
         # http://mail.python.org/pipermail/python-ideas/2007-May/000744.html
         # We just rebuild the heap from scratch after passing to super.
-        
-        super(priority_dict, self).update(*args, **kwargs)
+
+        super(PriorityDict, self).update(*args, **kwargs)
         self._rebuild_heap()
 
     def sorted_iter(self):
@@ -102,6 +87,6 @@ class priority_dict(dict):
 
         Beware: this will destroy elements as they are returned.
         """
-        
+
         while self:
             yield self.pop_smallest()
