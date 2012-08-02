@@ -98,7 +98,7 @@ def main():
     # Simulates until end time, if defined, otherwise until there are no vehicles
     while (curr_time < end_time if end_time else no_vehicles):
         # Advance the simulation
-        traci.simulationStep()
+        traci.simulationStep(0)
         curr_time += step_length
 
         # Update drivers of departed vehicles
