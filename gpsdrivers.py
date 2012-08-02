@@ -95,7 +95,8 @@ def main():
     curr_time = 0
     no_vehicles = False
 
-    while curr_time < end_time and not no_vehicles:
+    # Simulates until end time, if defined, otherwise until there are no vehicles
+    while (curr_time < end_time if end_time else no_vehicles):
         # Advance the simulation
         traci.simulationStep()
         curr_time += step_length
@@ -307,6 +308,9 @@ def parse_options(argv=None):
         parser.error('At least one route file is required, none was given.')
     if len(options.district_files) < 1:
         parser.error('At least one districts file is required, none was given.')
+    if options.reinsert and options.end is None:
+        parser.error('When reinserting vehicles an end time is mandatory, '
+                     'none was given.')
 
     return (options, args)
 
