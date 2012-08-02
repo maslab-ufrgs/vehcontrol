@@ -14,7 +14,7 @@ for calculating heuristics.
 """
 from collections import deque
 
-from prioritydict import PriorityDict
+from dicts import PriorityDict, DefaultDict
 from decoratorclass import DecoratorClass
 
 # Export ONLY the AStar class
