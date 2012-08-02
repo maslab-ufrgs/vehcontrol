@@ -84,8 +84,8 @@ def main():
     (options, args) = parse_options()
 
     # Read information from configuration files
-    net = load_network(options.network_file, options.district_files)
-    drivers = load_vehicles(options.route_files)
+    net = load_network(options.network_file, options.district_files, options.window_size)
+    drivers = load_vehicles(options.route_files, net, options.reinsert)
 
     # Connect to SUMO
     traci.init(options.port)
@@ -285,6 +285,11 @@ def parse_options(argv=None):
                       default=1000, metavar='TIME',
                       help='Length of a timestep in milliseconds. '
                       '[default: %default]')
+
+    parser.add_option('--window-size', dest='window_size', type='int',
+                      default=500000, metavar='MILLISECONDS',
+                      help='Size of the moving window used for obtaining '
+                      'the mean speed, in milliseconds. [default: %default]')
 
     parser.add_option('--cost-of-unknown', dest='cost_of_unknown',
                       type='float', metavar='COST',
