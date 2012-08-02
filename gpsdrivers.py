@@ -436,7 +436,7 @@ class DistrictReader(sax.handler.ContentHandler):
             self.__current_district = None
 
             # Obtain the district's edges
-            edge_ids = set(self.__current_sources + self.__current_sinks)
+            edge_ids = set(self.__current_sources).union(set(self.__current_sinks))
             edges = [self.__net.getEdge(id) for id in edge_ids]
 
             # Add to each edge
