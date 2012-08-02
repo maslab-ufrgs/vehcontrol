@@ -14,3 +14,7 @@ class DecoratorClass(object):
 
     def __getattr__(self, attr):
         return getattr(self.__decorated, attr)
+
+    @property
+    def decoratedObject(self):
+        return self.__decorated

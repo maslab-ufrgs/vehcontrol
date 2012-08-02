@@ -101,10 +101,6 @@ def main():
 
     # Simulates until end time, if defined, otherwise until there are no vehicles
     while (curr_time < end_time if end_time else no_vehicles):
-        # Advance the simulation
-        traci.simulationStep(0)
-        curr_time += step_length
-
         # Update drivers of departed vehicles
         departed_ids = traci.simulation.getDepartedIDList()
         departed = [drivers[veh] for veh in departed_ids if veh in drivers]
@@ -123,13 +119,15 @@ def main():
 
         # Update information about edges on ALL drivers
         for edge in net.getEdges():
+            edge_id = edge.getID().encode('utf-8')
+
             # Update the average speed
-            curr_speed = traci.edge.getLastStepMeanSpeed(edge.getID())
+            curr_speed = traci.edge.getLastStepMeanSpeed(edge_id)
             edge.speed_window.add_point(curr_speed)
 
             # Update the drivers on this edge
-            edge_vehs = traci.edge.getLastStepVehicleIDs(edge.getID())
-            edge_drivers = [drivers[veh] for veh in edge_vehs]
+            edge_vehs = traci.edge.getLastStepVehicleIDs(edge_id)
+            edge_drivers = [drivers[veh] for veh in edge_vehs if veh in drivers]
 
             for driver in edge_drivers:
                 driver.update_edge(edge)
@@ -158,13 +156,13 @@ class RoutedDriver(object):
         self.veh_id = veh_id
         self.origin = origin
         self.dest = dest
+        self.net = net
         self._edge_evaluator = edge_evaluator
 
     def on_depart(self):
         """Calculates the route upon departure."""
         curr_edge = self.net.getEdge(
             traci.vehicle.getRoadID(self.veh_id.encode('utf-8')))
-        self.net = net
 
         route = dijkstra(self.net, curr_edge, self.dest,
                          self.evaluate_edge)
@@ -189,6 +187,24 @@ class RoutedDriver(object):
 
 class ReinsertionDriver(DecoratorClass):
     """Decorator class that should be used with drivers."""
+
+    def __init__(self, driver):
+        super(ReinsertionDriver, self).__init__(driver)
+        self.__first_trip = True        
+
+    def on_depart(self):
+        """Record the route ID and delegate to the decorated instance."""
+        self.decoratedObject.on_depart()
+
+        if self.__first_trip:
+            # Creates a duplicate route that SUMO won't delete
+            # when the vehicle exits the network
+            orig_route_id = traci.vehicle.getRouteID(self.veh_id.encode('utf-8'))
+            route = traci.route.getEdges(orig_route_id)
+            self.__route_id = '__veh__' + self.veh_id.encode('utf-8')
+
+            traci.route.add(self.__route_id, route)
+            self.__first_trip = False
 
     def on_arrive(self):
         """Reinsert on arrival."""
