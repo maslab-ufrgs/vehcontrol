@@ -145,7 +145,7 @@ class RoutedDriver(object):
     accumulate information about the edges.
     """
 
-    def __init__(self, veh_id, origin, dest, edge_evaluator):
+    def __init__(self, veh_id, origin, dest, net, edge_evaluator):
         self.veh_id = veh_id
         self.origin = origin
         self.dest = dest
@@ -153,9 +153,16 @@ class RoutedDriver(object):
 
     def on_depart(self):
         """Calculates the route upon departure."""
-        route = dijkstra(self.origin, self.dest,
+        curr_edge = self.net.getEdge(
+            traci.vehicle.getRoadID(self.veh_id.encode('utf-8')))
+        self.net = net
+
+        route = dijkstra(self.net, curr_edge, self.dest,
                          self.evaluate_edge)
-        edges = [edge.getID() for edge in route]
+        if route is None:
+            raise Exception('Cannot find a route for %s, from %s to %s.'
+                            % (self.veh_id, curr_edge.getID(), self.dest.getID()))
+        edges = [edge.getID().encode('utf-8') for edge in route]
 
         traci.vehicle.setRoute(self.veh_id, edges)
 
@@ -399,8 +406,8 @@ def load_vehicles(route_files, net, reinsert):
 
         if evaluator_factory:
             # Build a basic driver
-            driver = RoutedDriver(veh.id, veh.origin, veh.dest, 
-                                  evaluator_factory())
+            driver = RoutedDriver(veh.id, veh.origin, veh.dest,
+                                  net, evaluator_factory())
             # Add reinsertion when required
             if reinsert:
                 driver = ReinsertionDriver(driver)

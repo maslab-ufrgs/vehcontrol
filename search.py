@@ -11,6 +11,8 @@ a pool for instances of this class.
 Also contains method-object classes for the algorithms, taking
 as parameters a function for obtaining the cost of each edge and
 for calculating heuristics.
+
+All search methods assume that no negative costs exist.
 """
 from collections import deque
 
@@ -21,25 +23,31 @@ from decoratorclass import DecoratorClass
 __all__ = ['astar', 'dijkstra', 'AStar']
 
 
-def astar(origin, destination, edge_cost_function, heuristic_distance_function):
+def astar(net, origin, destination, edge_cost_function,
+          heuristic_distance_function, accept_single_edge):
     """Calculates the least-cost path from origin to destination.
 
     Applies edge_cost_function to obtain the cost of each edge, and
     also heuristic_distance_function to obtain the heuristic distance
     between each edge and the destination, using it to guide the search.
+
+    The result may not be exact unless the heuristic is admissible
+    with regard to the edge cost function (i.e. never overestimates)
     """
     searcher = AStar(edge_cost_function, heuristic_distance_function)
-    return searcher.search(origin, destination)
+    return searcher.search(net, origin, destination, accept_single_edge)
 
-def dijkstra(origin, destination, edge_cost_function=None):
+def dijkstra(net, origin, destination, edge_cost_function=None, accept_single_edge=None):
     """Calculates the least-cost path from origin to destination.
 
-    Applies edge_cost_function to obtain the cost of each edge.
+    Applies edge_cost_function to obtain the cost of each edge,
+    which by default is just its length.
     """
     # Just an A* ignoring the heuristic
-    return astar(origin, destination,
+    return astar(net, origin, destination,
                  edge_cost_function or (lambda e: e.getLength()),
-                 lambda a, b: 0.0)
+                 lambda a, b: 0.0,
+                 accept_single_edge)
 
 class EdgeData(DecoratorClass):
     """Decorator class for Edges, adding information required for search."""
@@ -60,6 +68,9 @@ class EdgeData(DecoratorClass):
         self.__reaching_cost = float(reaching_cost)
         self.__heuristic_cost = float(heuristic_cost)
         self.__estimated_cost = self.__heuristic_cost + self.__reaching_cost
+
+    def __hash__(self):
+        return hash(self.getID())
 
     @property
     def edge(self):
@@ -89,11 +100,14 @@ class EdgeData(DecoratorClass):
         return self.__estimated_cost
 
     def reconstruct_path(self):
-        """Best path to this, obtained from the chain of previous_edges."""
-        current = self
-        result = deque()
+        """Best path to this, obtained from the chain of previous_edges.
 
-        while current is not None:
+        Breaks any cycles when reaches the receiver edge again.
+        """
+        current = self.previous_edge
+        result = deque([self])
+
+        while current is not None and current.getID() != self.getID():
             result.appendleft(current.edge)
             current = current.previous_edge
 
@@ -115,22 +129,33 @@ class AStar(object):
         self.heuristic_cost = (lambda edge:
                     heuristic_distance_function(edge, self.__destination))
 
-    def search(self, origin, destination):
+    def search(self, net, origin, destination, accept_single_edge=False):
         """Performs a search from origin to destination.
         """
-
         # Initialize necessary structures/data
         self.__priority_queue = PriorityDict()
-        self.__destination = EdgeData(destination)
-        self.__edges = {destination: self.__destination}
+        self.__edges = DefaultDict(lambda id: EdgeData(net.getEdge(id)))
 
-        first = self.__edges.get(
-            origin,
-            EdgeData(origin, state=EdgeData.OPEN,
-                     heuristic_cost=self.heuristic_cost(origin)))
-        self.__priority_queue[first] = first.estimated_cost
+        self.__destination = self.__edges[destination.getID()]
 
-        self.__edges = {origin: first, destination: self.__destination}
+        first = self.__edges[origin.getID()]
+        first.previous_edge = None
+        first.heuristic_cost = self.heuristic_cost(origin)
+
+        if origin.getID() == destination.getID():
+            # If the origin and destination are the same,
+            # they must still be changed from the original
+            # (in this case meaningless) zero-cost
+            first.state = EdgeData.UNVISITED
+        else:
+            first.state = EdgeData.OPEN
+
+        if accept_single_edge:
+            # Insert the first edge into the queue
+            self.__priority_queue[first.getID()] = first.estimated_cost
+        else:
+            # Insert the neighbors of the first edge into the queue
+            self.__visit_neighbors_of(first)
 
         # Main search body
         found_result = self.__search()
@@ -148,16 +173,18 @@ class AStar(object):
         destination set, origin on the priority queue.
         """
         # Bring common stuff into the namespace
+        all_edges = self.__edges
         open_edges = self.__priority_queue
-        destination = self.__destination
+        destination_id = self.__destination.getID()
 
         # Keeps checking the open edges and visiting neighbors
         while len(open_edges) > 0:
-            current_edge = open_edges.pop_smallest()
+            current_edge = all_edges[open_edges.pop_smallest()]
             current_edge.state = EdgeData.CLOSED
+            #log.debug('closed %s', current_edge.getID())
 
             # Ends search if found the destination
-            if current_edge == destination:
+            if current_edge.getID() == destination_id:
                 return True
 
             self.__visit_neighbors_of(current_edge)
@@ -181,7 +208,7 @@ class AStar(object):
 
         # Visit all neighbors
         for neighbor_edge in edge.getOutgoing():
-            neighbor = all_edges.get(neighbor_edge, EdgeData(neighbor_edge))
+            neighbor = all_edges[neighbor_edge.getID()]
 
             # Closed neighbors are NOT modified
             if neighbor.state == EdgeData.CLOSED:
@@ -196,17 +223,18 @@ class AStar(object):
                 neighbor.heuristic_cost = heuristic_cost(neighbor_edge)
 
                 # Put the neighbor into the priority queue
-                open_edges[neighbor] = neighbor.reaching_cost
+                open_edges[neighbor.getID()] = neighbor.reaching_cost
 
             # Open neighbors are updated if the cost is lowered
             elif neighbor.state == EdgeData.OPEN:
                 new_cost = (edge_cost(neighbor_edge)
-                                    + original_cost)
+                            + original_cost)
 
                 if new_cost < neighbor.reaching_cost:
                     neighbor.previous_edge = edge
                     neighbor.reaching_cost = new_cost
-                    open_edges[neighbor] = neighbor.estimated_cost
+                    open_edges[neighbor.getID()] = neighbor.estimated_cost
 
             else:
                 raise Exception("Invalid state for an EdgeData instance.")
+
