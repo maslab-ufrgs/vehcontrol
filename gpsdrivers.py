@@ -395,8 +395,7 @@ def load_vehicles(route_files, net, reinsert):
 
         if evaluator_factory:
             # Build a basic driver
-            driver = RoutedDriver(veh.id, veh.type,
-                                  veh.origin, veh.dest,
+            driver = RoutedDriver(veh.id, veh.origin, veh.dest, 
                                   evaluator_factory())
             # Add reinsertion when required
             if reinsert:
