@@ -317,7 +317,7 @@ def parse_list_to(dest):
     options object, identified by dest.
     """
     def callback(options, opt_str, value, parser):
-        setattr(options, dest, value.split(','))
+        setattr(parser.values, dest, value.split(','))
 
     return callback
 
