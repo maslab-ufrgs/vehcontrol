@@ -255,7 +255,7 @@ def parse_options(argv=None):
                       help='Port used to connect to SUMO '
                       '[default: %default]')
 
-    parser.add_option('-n', '--network-file', dest='network_file',
+    parser.add_option('-n', '--net-file', dest='network_file',
                       help='Load network from given file.',
                       type='string', metavar='FILE', default=None)
 
