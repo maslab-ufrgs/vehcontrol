@@ -349,7 +349,11 @@ def load_network(net_file, district_files, window_size):
     mean speed in a moving window of time.
     """
     # Load the edges of the network
-    net = sumolib.net.readNet(net_file)
+    try:
+        net = sumolib.net.readNet(net_file)
+    except IOError as err:
+        print 'Error reading net file:', err
+        sys.exit(1)
 
     # Initialize extra attributes of such edges
     for edge in net.getEdges():
@@ -361,7 +365,11 @@ def load_network(net_file, district_files, window_size):
     parser = sax.make_parser()
     parser.setContentHandler(district_handler)
     for filename in district_files:
-        parser.parse(filename)
+        try:
+            parser.parse(filename)
+        except IOError as err:
+            print 'Error reading district file:', err
+            sys.exit(1)
 
     return net
 
@@ -373,7 +381,11 @@ def load_vehicles(route_files, net, reinsert):
     parser = sax.make_parser()
     parser.setContentHandler(route_handler)
     for filename in route_files:
-        parser.parse(filename)
+        try:
+            parser.parse(filename)
+        except IOError as err:
+            print 'Error reading routes file:', err 
+            sys.exit(1)
 
     # Create drivers for each vehicle
     drivers = dict()
