@@ -1,6 +1,7 @@
-"""A priority queue with modifiable priorities.
+"""Some special dictionaries with useful properties.
 """
 
+from collections import defaultdict
 from heapq import heapify, heappush, heappop
 
 class PriorityDict(dict):
@@ -90,3 +91,15 @@ class PriorityDict(dict):
 
         while self:
             yield self.pop_smallest()
+
+class DefaultDict(defaultdict):
+    """A defaultdict where the default factory also takes the missing key."""
+
+    def __missing__(self, key):
+        if self.default_factory is None:
+            raise KeyError(key)
+
+        self[key] = val = self.default_factory(key)
+        return val
+
+    
