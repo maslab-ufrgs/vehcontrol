@@ -216,49 +216,72 @@ class ReinsertionDriver(DecoratorClass):
 #
 #
 # Edge evaluation
-class LengthBreadthEvaluator(object):
+class Evaluator(object):
+    """Shows the common interface for evaluators."""
+
+    def evaluate_edge(self, edge, driver):
+        """Returns the cost of the edge for the given driver."""
+        raise NotImplementedError()
+
+    def update_edge(self, edge):
+        """Updates information about the given edge."""
+        # By default, do nothing
+        pass
+
+class CompositeEvaluator(DecoratorClass):
+    """Base for evaluators which build upon simpler evaluators."""
+
+    def evaluate_edge(self, edge, driver):
+        subcost = self.subevaluator.evaluate_edge(edge, driver)
+        return self._reevaluate(edge, driver, subcost)
+
+    def _reevaluate(self, edge, driver, subcost):
+        """Modify and return the value of a subevaluation."""
+        raise NotImplementedError()
+
+    @property
+    def subevaluator(self):
+        return self.decoratedObject
+
+class LengthBreadthEvaluator(Evaluator):
     """The cost is simply length / number of lanes."""
 
     def evaluate_edge(self, edge, driver):
         return edge.getLength() / edge.getLaneNumber()
 
-class EdgeSpeedEvaluator(object):
+class EdgeSpeedEvaluator(CompositeEvaluator):
     """Use the edge mean speed to weight the subevaluator."""
 
-    def __init__(self, subeval):
-        self.__subeval = subeval
-
-    def evaluate_edge(self, edge, driver):
+    def _reevaluate(self, edge, driver, subcost):
         speed = edge.speed_window.average
         max_speed = edge.getSpeed()
-        subcost = self.__subeval.evaluate_edge(edge, driver)
         return subcost * max_speed / speed
 
-class ObservedSpeedEvaluator(object):
+class ObservedSpeedEvaluator(CompositeEvaluator):
     """Use the observed speed to weight the subevaluator."""
 
-    def __init__(self, subeval):
-        self.__edge_speeds = dict()
-        self.__subeval = subeval
+    def __init__(self, subevaluator):
+        super(ObservedSpeedEvaluator, self).__init__(subevaluator)
+        self.__edge_speeds = {}
 
-    def evaluate_edge(self, edge, driver):
-        speed = self.__edge_speeds[edge.id]
+    def update_edge(self, edge):
+        self.subevaluator.update_edge(edge)
+        self.__edge_speeds[edge.getID()] = edge.speed_window.average
+
+    def _reevaluate(self, edge, driver, subcost):
         max_speed = edge.getSpeed()
-        subcost = self.__subeval.evaluate_edge(edge, driver)
+        speed = self.__edge_speeds.get(edge.getID(), max_speed)
         return subcost * max_speed / speed
 
-class DistrictRestrictedEvaluator(object):
+class DistrictRestrictedEvaluator(CompositeEvaluator):
     """Restrict the set of known edges and bump their costs up."""
 
     COST_OF_UNKNOWN = 1.0e+10
 
-    def __init__(self, subeval):
-        self.__subeval = subeval
-
-    def evaluate_edge(self, edge, driver):
-        driver_districts = driver.origin.districts + driver.dest.districts
+    def _reevaluate(self, edge, driver, subcost):
+        driver_districts = driver.origin.districts.union(driver.dest.districts)
         if any(d in driver_districts for d in edge.districts):
-            return self.__subpolicy.evaluate_edge(edge, driver)
+            return subcost
         else:
             return self.COST_OF_UNKNOWN
 
