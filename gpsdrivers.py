@@ -30,10 +30,13 @@ by the driver type:
 
 """
 
+import logging as log
 import sys
+
 from collections import deque
 from optparse import OptionParser
 from xml import sax
+
 
 from averagingwindow import AveragingWindow
 from decoratorclass import DecoratorClass
@@ -81,6 +84,7 @@ except ImportError:
 def main():
     """Main body of code, defined as a function to ease interactive debugging.
     """
+    log.basicConfig(filename='gpsdrivers.log', level=log.INFO)
     (options, args) = parse_options()
 
     # Read information from configuration files
@@ -103,14 +107,16 @@ def main():
 
         # Update drivers of departed vehicles
         departed_ids = traci.simulation.getDepartedIDList()
-        departed = [drivers[veh] for veh in departed_ids]
+        departed = [drivers[veh] for veh in departed_ids if veh in drivers]
+        log.info('Updating %d departed vehicles.', len(departed))
 
         for driver in departed:
             driver.on_depart()
 
         # Update drivers of arrived vehicles
         arrived_ids = traci.simulation.getArrivedIDList()
-        arrived = [drivers[veh] for veh in arrived_ids]
+        arrived = [drivers[veh] for veh in arrived_ids if veh in drivers]
+        log.info('Updating %d arrived vehicles.', len(arrived))
 
         for driver in arrived:
             driver.on_arrive()
@@ -128,7 +134,10 @@ def main():
             for driver in edge_drivers:
                 driver.update_edge(edge)
 
-        # Update information about remaining vehicles
+        # Advance the simulation
+        traci.simulationStep(0)
+        curr_time += step_length
+        log.info('Advanced a timestep to %d.', curr_time/step_length)
         no_vehicles = len(traci.vehicle.getIDList()) < 1
 
     # Disconnect after simulation
@@ -164,7 +173,8 @@ class RoutedDriver(object):
                             % (self.veh_id, curr_edge.getID(), self.dest.getID()))
         edges = [edge.getID().encode('utf-8') for edge in route]
 
-        traci.vehicle.setRoute(self.veh_id, edges)
+        traci.vehicle.setRoute(self.veh_id.encode('utf-8'), edges)
+        log.debug('Calculated route for vehicle %s.', self.veh_id)
 
     def evaluate_edge(self, edge):
         return self._edge_evaluator.evaluate_edge(edge, self)
@@ -182,8 +192,9 @@ class ReinsertionDriver(DecoratorClass):
 
     def on_arrive(self):
         """Reinsert on arrival."""
-        route_id = traci.vehicle.getRouteID(self.veh_id)
-        traci.vehicle.add(self.veh_id, route_id)
+        # Insert with the prerecorded route with same ID as the vehicle
+        traci.vehicle.add(self.veh_id.encode('utf-8'), self.__route_id)
+        log.debug('Reinserted vehicle %s.', self.veh_id)
 
 
 #
